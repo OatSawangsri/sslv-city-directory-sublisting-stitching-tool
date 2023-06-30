@@ -7,7 +7,7 @@ To identify all sublisting that either got promoted to listing and identify its 
 Depend on the segment stitiching to be identify and accessible
 
 ## It does not
-- promote or demote the listing in the middle of the segment
+- not promote or demote the listing in the middle of the segment
 - does not modify the current data
 - does not perform 100% correct
 
