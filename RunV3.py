@@ -103,7 +103,7 @@ test_set = {
     }
 }
 
-ss_a = SublistingStitching(show="aa_summary.csv")
+ss_a = SublistingStitching(show=2)
 
 test = test_set["1986_v6"]
 

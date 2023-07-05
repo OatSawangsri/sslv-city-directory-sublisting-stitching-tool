@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import re
 from scipy import stats
 import os
 import csv
@@ -17,11 +18,14 @@ LISTING_TABLE = "CityDir.dbo.CdListings"
 SUBLISTING_TABLE = "CityDir.dbo.CdSubListings "
 SELECT_LIST = "cl.ID,  csl.SubListingsID , csl.ID as sublist_id, cl.CdStreetSegmentsID , cl.BookKey , cl.HouseText , cl.ListingExtent ,  csl.SubListingsExtent , csl.SubListingsXML "
 
+DESTINATION_DB = "CityDirDev"
+DESTINATION_TABLE = "CdSTD_sublisting_stitching_lookup_v1"
+
 INDENTATION_BUFFER = 5
 
 class SublistingStitching:
     
-    def __init__(self, show = False):
+    def __init__(self, show = 0):
         #self.book = book
         self.conn = self.connect()
         self.chain_list =[]
@@ -42,7 +46,7 @@ class SublistingStitching:
         return self.db_factory.create_connection().connection
 
     def run_query(self, query):
-        print(query)
+        #print(query)
         return pd.read_sql(query, self.conn) 
     
     def get_all_listing_from_book(self, book, min_l=None, max_l=None):
@@ -88,39 +92,65 @@ class SublistingStitching:
 
         extent_lists = self.extent_list(parent_child_source_l)
         #print(extent_lists)
-        self.process_all_lists(extent_lists)
+        write_count = self.process_all_lists(extent_lists)
+
+        return len(extent_lists), write_count
 
     def process_all_lists(self, process_lists):
         
-
+        total_write = 0
+        output = []
         for data in process_lists:
 
             if(self.all_listing.query("CdStreetSegmentsID == " + str(data[0])).empty):
-                print(data[0])
+                #print(data[0])
                 continue
 
             out = self.process_list(data)
-            self.write_result(out)
+            output.append(out)
+        
+        if(self.summary > 0):
+            self.write_result(output)
+
+        return len(output)
+
             
     def write_result(self, data):
         #print("writeoutto" +  f'./summary/{self.book}_result.csv')
-        self.write_csv(data, f'./summary/{self.book}_result.csv')
+        df_a = pd.DataFrame.from_records(data)
+        if(self.summary > 0):
+            self.write_csv(data, f'./summary/{self.book}_result.csv')
+        
+        if(self.summary > 1):
+            self.write_db(df_a)
 
-    def write_csv(self, data, filename = "test1.csv"):
-        file_exists = os.path.isfile(filename)
+    def write_db(self, data):
+        #df_a = pd.DataFrame.from_records(data)
+        try:
+            self.db_factory.write_df(data, DESTINATION_DB, DESTINATION_TABLE)
+        except:
+            print("error")
+        # write to csv for now
 
-        #print(data)
-        if(len(data) >= 1):
-            #print("Not data to write")
-            fields = list(data[0].keys())
+        #df.to_csv('./test.csv', index=False)
 
-            with open(filename, 'a+', newline='') as file:
-                writer = csv.DictWriter(file, fieldnames=fields)
-                if not file_exists:
-                    writer.writeheader()
-                writer.writerows(data)
-            
-            print(f'{filename} created successfully')
+    def write_csv(self, data_list, filename = "test1.csv"):
+        #data.to_csv(filename, index=False)
+        
+        for data in data_list:
+            #print(data)
+            file_exists = os.path.isfile(filename)
+            if(len(data) >= 1):
+                #print("Not data to write")
+                fields = list(data[0].keys())
+
+                with open(filename, 'a+', newline='') as file:
+                    writer = csv.DictWriter(file, fieldnames=fields)
+                    if not file_exists:
+                        writer.writeheader()
+                    writer.writerows(data)
+                
+                print(f'{filename} created successfully')
 
     def process_list(self, in_list):
 
@@ -157,8 +187,8 @@ class SublistingStitching:
                 parent = False
                 continue
 
-            print("p_segment")
-            print(prior_segment.segment_id);
+            # print("p_segment")
+            # print(prior_segment.segment_id);
             # should start at the second item in list
             current_house_first = current_segment.get_listing_on(0, "HouseText")
             prior_house_last = prior_segment.get_listing_on(-1, "HouseText")
@@ -252,6 +282,7 @@ class SublistingStitching:
                 # print(current_segment.segment_id)
                 # print(current_segment.get_sublisting_on(0))
                 write_out = {
+                            "BookKey": self.book,
                             "parent_seg_id": parent_seg_id,
                             "major_seg_id" : prior_segment.segment_id,
                             "minor_seg_id" : current_segment.segment_id,
@@ -283,8 +314,8 @@ class SublistingStitching:
                         last_house_num_prior = current_segment.get_listing_on(-1, "HouseText")
                         write_out["minor_sublisting_lists_listing_id"] = sub_list
                         summary.append(write_out)
-                        print("whole segment is sublisting")
-                        print(prior_segment.segment_id)
+                        # print("whole segment is sublisting")
+                        # print(prior_segment.segment_id)
 
                         continue
                     else:
@@ -416,10 +447,10 @@ class SublistingStitching:
             return 0
 
     def check_continuation_number(self,target, value, buffer = 2):
-        c_set = 'abcdefghijklmnopqrstuvwxyz'
 
-        i_target = int(target.lower().lstrip(c_set).rstrip(c_set))
-        i_value = int(value.lower().lstrip(c_set).rstrip(c_set))
+
+        i_target = int(self.strip_out(target))
+        i_value = int(self.strip_out(value))
         if i_target > i_value:
             return False
 
@@ -432,20 +463,25 @@ class SublistingStitching:
                 return True
 
         return False  
+    
+    def strip_out(self, value):
+        #clean up
+        c_set = 'abcdefghijklmnopqrstuvwxyz'
+        result = re.sub(r"[/\W].*", "", value)
+        out = result.lower().lstrip(c_set).rstrip(c_set)
+
+        return out
 
     def get_closest_address_range(self, source, target_a, target_b):
         # assumption (to this point) - all house number did not start or end with char - those should get pick upi by  get_closet_address_string_format
 
-        #clean up
-        c_set = 'abcdefghijklmnopqrstuvwxyz'
-        
         #check number
         # occur when all data do not have char lead/tail
         try:
 
-            i_source = int(source.lower().lstrip(c_set).rstrip(c_set))
-            i_target_a = int(target_a.lower().lstrip(c_set).rstrip(c_set))
-            i_target_b = int(target_b.lower().lstrip(c_set).rstrip(c_set))
+            i_source = int(self.strip_out(source))
+            i_target_a = int(self.strip_out(target_a))
+            i_target_b = int(self.strip_out(target_b))
 
             diff_s_a = abs(i_source - i_target_a)
             diff_s_b = abs(i_source - i_target_b)
