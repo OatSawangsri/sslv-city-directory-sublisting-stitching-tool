@@ -118,36 +118,45 @@ class SublistingStitching:
     def write_result(self, data):
         #print("writeoutto" +  f'./summary/{self.book}_result.csv')
         df_a = pd.DataFrame.from_records(data)
+        filename = f'./summary/{self.book}_result.csv'
         if(self.summary > 0):
-            self.write_csv(data, f'./summary/{self.book}_result.csv')
+            self.write_csv(data, filename)
         
         if(self.summary > 1):
+            #df_b = pd.read_csv(filename)
             self.write_db(df_a)
+
 
     def write_db(self, data):
         #df_a = pd.DataFrame.from_records(data)
         try:
             self.db_factory.write_df(data, DESTINATION_DB, DESTINATION_TABLE)
-        except:
-            print("error")
+        except Exception as e:
+            print("Error write table:", str(e))
         # write to csv for now
 
         #df.to_csv('./test.csv', index=False)
 
     def write_csv(self, data_list, filename = "test1.csv"):
         #data.to_csv(filename, index=False)
+        file_exists = os.path.isfile(filename)
+        if file_exists:
+            os.remove(filename)
         
+        first_write = True
+
         for data in data_list:
             #print(data)
-            file_exists = os.path.isfile(filename)
+            #file_exists = os.path.isfile(filename)
             if(len(data) >= 1):
                 #print("Not data to write")
                 fields = list(data[0].keys())
 
                 with open(filename, 'a+', newline='') as file:
                     writer = csv.DictWriter(file, fieldnames=fields)
-                    if not file_exists:
+                    if first_write:
                         writer.writeheader()
+                        first_write = False
                     writer.writerows(data)
                 
                 print(f'{filename} created successfully')
