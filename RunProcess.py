@@ -81,8 +81,10 @@ ca_book_list_1 = [
   "caredlands1919losangelesdirec"
 ]
 
+active_list_tx = tx_book_list_1 + tx_book_list_2  #bad
+active_list_ga = t_book_list_1 + t_book_list_2 + t_book_list_3 + t_book_list_4
 
-for book in ca_book_list_1:
+for book in active_list_ga:
   file_name = './log/' + book + '_summary.csv'
 
   print("= START process: " + book + "  == ")

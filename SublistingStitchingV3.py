@@ -122,9 +122,11 @@ class SublistingStitching:
         if(self.summary > 0):
             self.write_csv(data, filename)
         
-        if(self.summary > 1):
-            #df_b = pd.read_csv(filename)
-            self.write_db(df_a)
+        if(self.summary > 1 and os.path.isfile(filename)):
+            df_b = pd.read_csv(filename)
+            self.write_db(df_b)
+
+            #self.write_db(df_a)
 
 
     def write_db(self, data):
@@ -159,7 +161,8 @@ class SublistingStitching:
                         first_write = False
                     writer.writerows(data)
                 
-                print(f'{filename} created successfully')
+
+        print(f'{filename} created successfully')    
 
     def process_list(self, in_list):
 
@@ -457,9 +460,13 @@ class SublistingStitching:
 
     def check_continuation_number(self,target, value, buffer = 2):
 
+        try:
+            i_target = self.strip_out_convert(target)
+            i_value = self.strip_out_convert(value)
+        except:
+            print("check_continuation_number convert issue")
+            return False
 
-        i_target = int(self.strip_out(target))
-        i_value = int(self.strip_out(value))
         if i_target > i_value:
             return False
 
@@ -473,13 +480,19 @@ class SublistingStitching:
 
         return False  
     
-    def strip_out(self, value):
+    def strip_out_convert(self, value):
         #clean up
         c_set = 'abcdefghijklmnopqrstuvwxyz'
         result = re.sub(r"[/\W].*", "", value)
         out = result.lower().lstrip(c_set).rstrip(c_set)
 
-        return out
+        try:
+            i_out= int(out)
+        except:
+            print("Error convert: " + str(out))
+            return 0
+
+        return i_out
 
     def get_closest_address_range(self, source, target_a, target_b):
         # assumption (to this point) - all house number did not start or end with char - those should get pick upi by  get_closet_address_string_format
@@ -488,9 +501,12 @@ class SublistingStitching:
         # occur when all data do not have char lead/tail
         try:
 
-            i_source = int(self.strip_out(source))
-            i_target_a = int(self.strip_out(target_a))
-            i_target_b = int(self.strip_out(target_b))
+            i_source = self.strip_out_convert(source)
+            i_target_a = self.strip_out_convert(target_a)
+            i_target_b = self.strip_out_convert(target_b)
+
+            if(i_source == 0 or i_target_a == 0 or i_target_b == 0):
+                return 0
 
             diff_s_a = abs(i_source - i_target_a)
             diff_s_b = abs(i_source - i_target_b)
